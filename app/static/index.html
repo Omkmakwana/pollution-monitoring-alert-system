@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PMAS Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <header class="topbar">
+    <div>
+      <h1>Pollution Monitoring and Alert System</h1>
+      <p class="subtitle">Real-time AQI, station telemetry, and incident alerts</p>
+    </div>
+    <div class="kpi">
+      <span>Open Alerts</span>
+      <strong id="open-alert-count">0</strong>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel stations-panel">
+      <div class="panel-head">
+        <h2>Stations</h2>
+        <button id="refresh-btn" class="btn">Refresh</button>
+      </div>
+      <div id="station-list" class="station-list"></div>
+    </section>
+
+    <section class="panel map-panel">
+      <h2>Monitoring Map</h2>
+      <div id="map"></div>
+    </section>
+
+    <section class="panel chart-panel">
+      <h2>Selected Station Trend</h2>
+      <canvas id="trend-chart"></canvas>
+    </section>
+
+    <section class="panel alert-panel">
+      <h2>Live Alert Feed</h2>
+      <div id="alert-feed" class="alert-feed"></div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

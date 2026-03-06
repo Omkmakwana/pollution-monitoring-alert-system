@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  pmas:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pmas-app
+    ports:
+      - "8000:8000"
+    environment:
+      PMAS_DB_URL: sqlite:////app/data/pmas.db
+      PMAS_SMTP_HOST: ${PMAS_SMTP_HOST:-}
+      PMAS_SMTP_PORT: ${PMAS_SMTP_PORT:-587}
+      PMAS_SMTP_USER: ${PMAS_SMTP_USER:-}
+      PMAS_SMTP_PASSWORD: ${PMAS_SMTP_PASSWORD:-}
+      PMAS_SMTP_USE_TLS: ${PMAS_SMTP_USE_TLS:-true}
+      PMAS_EMAIL_FROM: ${PMAS_EMAIL_FROM:-}
+      PMAS_TWILIO_ACCOUNT_SID: ${PMAS_TWILIO_ACCOUNT_SID:-}
+      PMAS_TWILIO_AUTH_TOKEN: ${PMAS_TWILIO_AUTH_TOKEN:-}
+      PMAS_TWILIO_FROM_PHONE: ${PMAS_TWILIO_FROM_PHONE:-}
+    volumes:
+      - pmas_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  pmas_data:
