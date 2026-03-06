@@ -6,6 +6,10 @@ A production-style MVP that follows software engineering principles across plann
 - Station registration and listing
 - Sensor reading ingestion for pollutants (PM2.5, PM10, CO, NO2, SO2, O3)
 - Strong API validation for station coordinates and recent-reading limits
+- API key protection for write operations (`X-API-Key`) when configured
+- Pagination and filtering support on list endpoints
+- Request logging with request-id correlation and timing
+- Notification retries with configurable backoff
 - AQI calculation (PM2.5 and PM10 with category)
 - Configurable alert rules by pollutant and duration
 - Alert generation and acknowledgment workflow
@@ -39,8 +43,12 @@ A production-style MVP that follows software engineering principles across plann
 ## Notification Setup
 Configure environment variables (locally or in Docker):
 
+- `PMAS_API_KEY`, `PMAS_LOG_LEVEL`, `PMAS_DEFAULT_PAGE_SIZE`, `PMAS_MAX_PAGE_SIZE`
+- `PMAS_NOTIFICATION_RETRY_COUNT`, `PMAS_NOTIFICATION_RETRY_BACKOFF_SECONDS`
 - `PMAS_SMTP_HOST`, `PMAS_SMTP_PORT`, `PMAS_SMTP_USER`, `PMAS_SMTP_PASSWORD`, `PMAS_SMTP_USE_TLS`, `PMAS_EMAIL_FROM`
 - `PMAS_TWILIO_ACCOUNT_SID`, `PMAS_TWILIO_AUTH_TOKEN`, `PMAS_TWILIO_FROM_PHONE`
+
+If `PMAS_API_KEY` is set, include header `X-API-Key: <value>` for write endpoints.
 
 Create subscribers:
 - `POST /subscribers` with `channel: email` and destination email
@@ -62,6 +70,17 @@ Create subscribers:
    - `email`: must be email-shaped (contains `@` and no edge `@`).
    - `sms`: must use E.164 style (`+<digits>`).
 - Creating a subscriber with the same `channel + destination` returns `409 Conflict`.
+
+## API Pagination and Filtering
+- `GET /stations`: `skip`, `limit`, optional `city`
+- `GET /alerts`: `skip`, `limit`, optional `status`, `severity`, `pollutant`, `station_id`
+- `GET /subscribers`: `skip`, `limit`, optional `channel`, `is_active`
+- `GET /alert-rules`: `skip`, `limit`
+
+## Health and Readiness
+- `GET /health`: basic health
+- `GET /health/live`: liveness signal
+- `GET /health/ready`: readiness with DB connectivity check
 
 ## Docker Compose
 1. Optional: copy `.env.example` to `.env` and set credentials.

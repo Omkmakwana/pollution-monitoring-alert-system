@@ -18,6 +18,19 @@ def list_stations(db: Session) -> list[models.Station]:
     return db.scalars(select(models.Station).order_by(models.Station.id)).all()
 
 
+def list_stations_paginated(
+    db: Session,
+    skip: int,
+    limit: int,
+    city: str | None = None,
+) -> list[models.Station]:
+    stmt = select(models.Station)
+    if city:
+        stmt = stmt.where(models.Station.city == city)
+    stmt = stmt.order_by(models.Station.id).offset(skip).limit(limit)
+    return db.scalars(stmt).all()
+
+
 def get_station(db: Session, station_id: int) -> models.Station | None:
     return db.get(models.Station, station_id)
 
@@ -144,6 +157,28 @@ def list_alerts(db: Session) -> list[models.Alert]:
     return db.scalars(select(models.Alert).order_by(desc(models.Alert.started_at))).all()
 
 
+def list_alerts_paginated(
+    db: Session,
+    skip: int,
+    limit: int,
+    status: str | None = None,
+    severity: str | None = None,
+    pollutant: str | None = None,
+    station_id: int | None = None,
+) -> list[models.Alert]:
+    stmt = select(models.Alert)
+    if status:
+        stmt = stmt.where(models.Alert.status == status)
+    if severity:
+        stmt = stmt.where(models.Alert.severity == severity)
+    if pollutant:
+        stmt = stmt.where(models.Alert.pollutant == pollutant)
+    if station_id is not None:
+        stmt = stmt.where(models.Alert.station_id == station_id)
+    stmt = stmt.order_by(desc(models.Alert.started_at)).offset(skip).limit(limit)
+    return db.scalars(stmt).all()
+
+
 def acknowledge_alert(db: Session, alert_id: int) -> models.Alert | None:
     alert = db.get(models.Alert, alert_id)
     if not alert:
@@ -181,6 +216,22 @@ def get_subscriber_by_channel_and_destination(
 
 def list_subscribers(db: Session) -> list[models.NotificationSubscriber]:
     return db.scalars(select(models.NotificationSubscriber).order_by(models.NotificationSubscriber.id)).all()
+
+
+def list_subscribers_paginated(
+    db: Session,
+    skip: int,
+    limit: int,
+    channel: str | None = None,
+    is_active: bool | None = None,
+) -> list[models.NotificationSubscriber]:
+    stmt = select(models.NotificationSubscriber)
+    if channel:
+        stmt = stmt.where(models.NotificationSubscriber.channel == channel)
+    if is_active is not None:
+        stmt = stmt.where(models.NotificationSubscriber.is_active.is_(is_active))
+    stmt = stmt.order_by(models.NotificationSubscriber.id).offset(skip).limit(limit)
+    return db.scalars(stmt).all()
 
 
 def list_active_subscribers(db: Session, channel: str | None = None) -> list[models.NotificationSubscriber]:

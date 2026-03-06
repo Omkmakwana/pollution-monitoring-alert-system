@@ -1,11 +1,15 @@
 import smtplib
+import time
 from email.message import EmailMessage
+from logging import getLogger
 
 from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client
 
 from app import crud, models
 from app.config import settings
+
+logger = getLogger(__name__)
 
 
 def send_email_alert(to_email: str, subject: str, body: str) -> tuple[bool, str | None, str | None]:
@@ -50,12 +54,7 @@ def notify_subscribers_for_alert(db, alert: models.Alert) -> None:
     body = f"Station {alert.station_id}: {alert.message}"
 
     for subscriber in subscribers:
-        if subscriber.channel == "email":
-            success, provider_id, error_message = send_email_alert(subscriber.destination, subject, body)
-        elif subscriber.channel == "sms":
-            success, provider_id, error_message = send_sms_alert(subscriber.destination, body)
-        else:
-            success, provider_id, error_message = False, None, "Unsupported channel"
+        success, provider_id, error_message = _send_with_retries(subscriber, subject, body)
 
         crud.create_notification_log(
             db=db,
@@ -66,3 +65,40 @@ def notify_subscribers_for_alert(db, alert: models.Alert) -> None:
             provider_message_id=provider_id,
             error_message=error_message,
         )
+
+
+def _send_with_retries(
+    subscriber: models.NotificationSubscriber,
+    subject: str,
+    body: str,
+) -> tuple[bool, str | None, str | None]:
+    max_attempts = settings.notification_retry_count + 1
+    last_result: tuple[bool, str | None, str | None] = (False, None, "Unknown delivery failure")
+
+    for attempt in range(1, max_attempts + 1):
+        if subscriber.channel == "email":
+            last_result = send_email_alert(subscriber.destination, subject, body)
+        elif subscriber.channel == "sms":
+            last_result = send_sms_alert(subscriber.destination, body)
+        else:
+            return False, None, "Unsupported channel"
+
+        if last_result[0]:
+            return last_result
+
+        logger.warning(
+            "Notification attempt failed",
+            extra={
+                "request_id": "-",
+                "subscriber_id": subscriber.id,
+                "channel": subscriber.channel,
+                "attempt": attempt,
+                "max_attempts": max_attempts,
+            },
+        )
+
+        if attempt < max_attempts:
+            backoff = settings.notification_retry_backoff_seconds * attempt
+            time.sleep(backoff)
+
+    return last_result

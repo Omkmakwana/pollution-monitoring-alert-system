@@ -1,19 +1,15 @@
 import time
 
-from fastapi.testclient import TestClient
-
-from app.main import app
-
-client = TestClient(app)
+from app.config import settings
 
 
-def test_health():
+def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
 
-def test_station_reading_aqi_alert_flow():
+def test_station_reading_aqi_alert_flow(client):
     suffix = str(int(time.time() * 1000))
 
     station_payload = {
@@ -66,7 +62,7 @@ def test_station_reading_aqi_alert_flow():
     assert ack_resp.json()["status"] == "acknowledged"
 
 
-def test_subscriber_and_dashboard_summary():
+def test_subscriber_and_dashboard_summary(client):
     suffix = str(int(time.time() * 1000))
 
     station_payload = {
@@ -106,7 +102,7 @@ def test_subscriber_and_dashboard_summary():
     assert len(recent_resp.json()) >= 2
 
 
-def test_station_coordinate_validation():
+def test_station_coordinate_validation(client):
     response = client.post(
         "/stations",
         json={
@@ -119,7 +115,7 @@ def test_station_coordinate_validation():
     assert response.status_code == 422
 
 
-def test_duplicate_subscriber_is_rejected():
+def test_duplicate_subscriber_is_rejected(client):
     suffix = str(int(time.time() * 1000))
     payload = {
         "name": "Ops Team",
@@ -134,7 +130,7 @@ def test_duplicate_subscriber_is_rejected():
     assert second.status_code == 409
 
 
-def test_subscriber_destination_validation():
+def test_subscriber_destination_validation(client):
     bad_email = client.post(
         "/subscribers",
         json={"name": "Ops", "channel": "email", "destination": "not-an-email"},
@@ -148,7 +144,7 @@ def test_subscriber_destination_validation():
     assert bad_sms.status_code == 422
 
 
-def test_recent_readings_limit_validation():
+def test_recent_readings_limit_validation(client):
     suffix = str(int(time.time() * 1000))
 
     station_resp = client.post(
@@ -165,3 +161,75 @@ def test_recent_readings_limit_validation():
 
     response = client.get(f"/stations/{station_id}/readings/recent?limit=0")
     assert response.status_code == 422
+
+
+def test_pagination_and_filtering_endpoints(client):
+    suffix = str(int(time.time() * 1000))
+
+    s1 = client.post(
+        "/stations",
+        json={
+            "name": f"A-{suffix}",
+            "city": "CityA",
+            "latitude": 18.1,
+            "longitude": 72.1,
+        },
+    )
+    assert s1.status_code == 201
+
+    s2 = client.post(
+        "/stations",
+        json={
+            "name": f"B-{suffix}",
+            "city": "CityB",
+            "latitude": 18.2,
+            "longitude": 72.2,
+        },
+    )
+    assert s2.status_code == 201
+
+    station_id = s1.json()["id"]
+    client.post(
+        "/alert-rules",
+        json={"pollutant": "PM2.5", "threshold": 10, "duration_minutes": 1, "severity": "high"},
+    )
+    client.post("/readings", json={"station_id": station_id, "pollutant": "PM2.5", "value": 15})
+
+    stations_filtered = client.get("/stations?city=CityA&limit=1")
+    assert stations_filtered.status_code == 200
+    assert len(stations_filtered.json()) == 1
+    assert stations_filtered.json()[0]["city"] == "CityA"
+
+    alerts_filtered = client.get(f"/alerts?station_id={station_id}&status=open")
+    assert alerts_filtered.status_code == 200
+    assert all(item["station_id"] == station_id for item in alerts_filtered.json())
+
+
+def test_write_endpoints_require_api_key_when_enabled(client):
+    original_api_key = settings.api_key
+    settings.api_key = "secret-key"
+    try:
+        missing_key = client.post(
+            "/stations",
+            json={
+                "name": "Protected Station",
+                "city": "SecureCity",
+                "latitude": 18.8,
+                "longitude": 73.0,
+            },
+        )
+        assert missing_key.status_code == 401
+
+        with_key = client.post(
+            "/stations",
+            headers={"X-API-Key": "secret-key"},
+            json={
+                "name": "Protected Station 2",
+                "city": "SecureCity",
+                "latitude": 18.9,
+                "longitude": 73.1,
+            },
+        )
+        assert with_key.status_code == 201
+    finally:
+        settings.api_key = original_api_key
