@@ -95,6 +95,13 @@ def test_subscriber_and_dashboard_summary(client):
     assert summary_resp.status_code == 200
     data = summary_resp.json()
     assert "stations" in data
+    assert "overview" in data
+    assert "cities" in data
+    assert "pollutant_snapshot" in data
+    assert data["overview"]["total_stations"] >= 1
+    assert data["overview"]["total_subscribers"] >= 1
+    assert isinstance(data["cities"], list)
+    assert any(item["label"] == "PM2.5" for item in data["pollutant_snapshot"])
     assert any(item["station_id"] == station_id for item in data["stations"])
 
     recent_resp = client.get(f"/stations/{station_id}/readings/recent")

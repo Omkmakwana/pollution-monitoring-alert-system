@@ -23,7 +23,7 @@ validate_settings()
 Base.metadata.create_all(bind=engine)
 
 logger = logging.getLogger(__name__)
-app = FastAPI(title="Pollution Monitoring and Alert System", version="1.1.0")
+app = FastAPI(title="Pollution Monitoring and Alert System", version="1.2.0")
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -249,10 +249,12 @@ def get_subscribers(
 @app.get("/dashboard/summary", response_model=schemas.DashboardSummaryRead)
 def get_dashboard_summary(db: Session = Depends(get_db)):
     stations = crud.list_stations(db)
+    station_alert_counts = crud.dashboard_station_alert_counts(db)
     station_items: list[schemas.StationDashboardRead] = []
 
     for station in stations:
         summary = crud.latest_station_summary(db, station.id)
+        alert_state = station_alert_counts.get(station.id, {"open_alert_count": 0, "dominant_severity": None})
         station_items.append(
             schemas.StationDashboardRead(
                 station_id=station.id,
@@ -260,15 +262,26 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
                 city=station.city,
                 latitude=station.latitude,
                 longitude=station.longitude,
+                is_active=station.is_active,
                 latest_aqi=summary["latest_aqi"],
                 latest_category=summary["latest_category"],
                 latest_pm25=summary["latest_pm25"],
                 latest_pm10=summary["latest_pm10"],
+                latest_reading_at=summary["latest_reading_at"],
+                open_alert_count=int(alert_state["open_alert_count"]),
+                dominant_severity=alert_state["dominant_severity"],
             )
         )
 
     active_alerts = crud.open_alerts(db)
-    return schemas.DashboardSummaryRead(stations=station_items, open_alerts=len(active_alerts), active_alerts=active_alerts)
+    return schemas.DashboardSummaryRead(
+        overview=crud.dashboard_overview(db),
+        stations=station_items,
+        open_alerts=len(active_alerts),
+        active_alerts=active_alerts,
+        cities=crud.dashboard_city_summaries(db),
+        pollutant_snapshot=crud.dashboard_pollutant_snapshot(db),
+    )
 
 
 @app.get("/stations/{station_id}/readings/recent", response_model=list[schemas.ReadingRead])

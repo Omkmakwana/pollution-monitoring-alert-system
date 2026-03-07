@@ -115,13 +115,46 @@ class StationDashboardRead(BaseModel):
     city: str
     latitude: float
     longitude: float
+    is_active: bool
     latest_aqi: int | None
     latest_category: str | None
     latest_pm25: float | None
     latest_pm10: float | None
+    latest_reading_at: datetime | None
+    open_alert_count: int
+    dominant_severity: str | None
+
+
+class DashboardOverviewRead(BaseModel):
+    total_stations: int
+    active_stations: int
+    city_count: int
+    total_subscribers: int
+    open_alerts: int
+    critical_alerts: int
+    average_aqi: float | None
+    max_aqi: int | None
+    worst_station_name: str | None
+    last_updated: datetime
+
+
+class DashboardCityRead(BaseModel):
+    city: str
+    station_count: int
+    average_aqi: float | None
+    open_alerts: int
+
+
+class PollutantSnapshotRead(BaseModel):
+    label: str
+    average_value: float | None
+    peak_value: float | None
 
 
 class DashboardSummaryRead(BaseModel):
+    overview: DashboardOverviewRead
     stations: list[StationDashboardRead]
     open_alerts: int
     active_alerts: list[AlertRead]
+    cities: list[DashboardCityRead]
+    pollutant_snapshot: list[PollutantSnapshotRead]

@@ -13,7 +13,7 @@ A production-style MVP that follows software engineering principles across plann
 - AQI calculation (PM2.5 and PM10 with category)
 - Configurable alert rules by pollutant and duration
 - Alert generation and acknowledgment workflow
-- Live dashboard (`/`) with station cards, map, chart, and alert feed
+- Live operations dashboard (`/`) with KPI cards, station intelligence rail, interactive map, trend chart, alert feed, city insights, and pollutant snapshot
 - Real notification channels: email (SMTP) and SMS (Twilio)
 - Notification subscriber management via API with duplicate prevention
 - FastAPI REST API with SQLite persistence
@@ -95,6 +95,16 @@ Create subscribers:
 ## Run Tests
 ```bash
 pytest -q
+```
+
+## Seed Demo Dashboard Data
+```bash
+python seed_demo_data.py
+```
+
+To replace existing demo records:
+```bash
+python seed_demo_data.py --reset-demo
 ```
 
 ## Lifecycle Documentation

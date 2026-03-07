@@ -279,6 +279,14 @@ def latest_station_summary(db: Session, station_id: int) -> dict[str, int | floa
         "latest_category": latest_aqi_record.category if latest_aqi_record else None,
         "latest_pm25": latest_pm25_record.value if latest_pm25_record else None,
         "latest_pm10": latest_pm10_record.value if latest_pm10_record else None,
+        "latest_reading_at": max(
+            [
+                item.timestamp
+                for item in (latest_pm25_record, latest_pm10_record)
+                if item is not None
+            ],
+            default=None,
+        ),
     }
 
 
@@ -290,3 +298,103 @@ def recent_readings(db: Session, station_id: int, limit: int = 30) -> list[model
         .limit(limit)
     )
     return db.scalars(stmt).all()
+
+
+def dashboard_station_alert_counts(db: Session) -> dict[int, dict[str, int | str | None]]:
+    counts: dict[int, dict[str, int | str | None]] = {}
+    severity_rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+
+    for alert in open_alerts(db):
+        current = counts.setdefault(alert.station_id, {"open_alert_count": 0, "dominant_severity": None})
+        current["open_alert_count"] = int(current["open_alert_count"]) + 1
+
+        dominant_severity = current["dominant_severity"]
+        if dominant_severity is None or severity_rank.get(alert.severity, 0) > severity_rank.get(str(dominant_severity), 0):
+            current["dominant_severity"] = alert.severity
+
+    return counts
+
+
+def dashboard_overview(db: Session) -> dict[str, int | float | str | datetime | None]:
+    stations = list_stations(db)
+    active_alert_items = open_alerts(db)
+    active_subscribers = list_active_subscribers(db)
+    aqi_records = [latest_aqi(db, station.id) for station in stations]
+    available_aqis = [record.aqi for record in aqi_records if record is not None]
+
+    worst_station_name = None
+    max_aqi = max(available_aqis) if available_aqis else None
+    if max_aqi is not None:
+        for station, record in zip(stations, aqi_records, strict=False):
+            if record and record.aqi == max_aqi:
+                worst_station_name = station.name
+                break
+
+    return {
+        "total_stations": len(stations),
+        "active_stations": sum(1 for station in stations if station.is_active),
+        "city_count": len({station.city for station in stations}),
+        "total_subscribers": len(active_subscribers),
+        "open_alerts": len(active_alert_items),
+        "critical_alerts": sum(1 for alert in active_alert_items if alert.severity == "critical"),
+        "average_aqi": round(sum(available_aqis) / len(available_aqis), 1) if available_aqis else None,
+        "max_aqi": max_aqi,
+        "worst_station_name": worst_station_name,
+        "last_updated": datetime.now(timezone.utc),
+    }
+
+
+def dashboard_city_summaries(db: Session) -> list[dict[str, int | float | str | None]]:
+    stations = list_stations(db)
+    open_alert_items = open_alerts(db)
+    alert_count_by_station: dict[int, int] = {}
+    for alert in open_alert_items:
+        alert_count_by_station[alert.station_id] = alert_count_by_station.get(alert.station_id, 0) + 1
+
+    grouped: dict[str, dict[str, list[int] | int]] = {}
+    for station in stations:
+        city_summary = grouped.setdefault(station.city, {"aqis": [], "station_count": 0, "open_alerts": 0})
+        city_summary["station_count"] = int(city_summary["station_count"]) + 1
+        city_summary["open_alerts"] = int(city_summary["open_alerts"]) + alert_count_by_station.get(station.id, 0)
+
+        latest_record = latest_aqi(db, station.id)
+        if latest_record is not None:
+            city_summary["aqis"].append(latest_record.aqi)
+
+    results: list[dict[str, int | float | str | None]] = []
+    for city, values in grouped.items():
+        aqis = values["aqis"]
+        average_aqi = round(sum(aqis) / len(aqis), 1) if aqis else None
+        results.append(
+            {
+                "city": city,
+                "station_count": int(values["station_count"]),
+                "average_aqi": average_aqi,
+                "open_alerts": int(values["open_alerts"]),
+            }
+        )
+
+    return sorted(results, key=lambda item: (-int(item["open_alerts"]), str(item["city"])))
+
+
+def dashboard_pollutant_snapshot(db: Session) -> list[dict[str, float | str | None]]:
+    pollutants = ["PM2.5", "PM10"]
+    stations = list_stations(db)
+    snapshot: list[dict[str, float | str | None]] = []
+
+    for pollutant in pollutants:
+        values: list[float] = []
+        for station in stations:
+            latest_reading_record = latest_pollutant_reading(db, station.id, pollutant)
+            if latest_reading_record is not None:
+                values.append(latest_reading_record.value)
+
+        snapshot.append(
+            {
+                "label": pollutant,
+                "average_value": round(sum(values) / len(values), 1) if values else None,
+                "peak_value": round(max(values), 1) if values else None,
+            }
+        )
+
+    return snapshot
